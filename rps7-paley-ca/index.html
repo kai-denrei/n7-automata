@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RPS-7 Paley hex CA</title>
+<link rel="stylesheet" href="./style.css?v=96f43902" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <meta name="cb" content="96f43902">
+  <link rel="icon" type="image/svg+xml" href="/cb-shapes/22.svg?v=96f43902">
+  <script src="/cb-badge.js?v=96f43902" defer></script>
+</head>
+<body>
+<main>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="view-organic" class="active" aria-selected="true">Organic &middot; Stålberg</button>
+    <button role="tab" data-tab="view-hex" aria-selected="false">Regular hex</button>
+  </nav>
+
+  <section class="view" id="view-hex" hidden>
+  <h1>7-element cyclic CA &middot; Paley tournament on a hex map</h1>
+  <p class="sub">Element x beats x+1, x+2, x+4 (mod 7). Doubly regular &mdash; every pair shares one common predator, so no coalition wins.</p>
+
+  <div id="legend" class="legend"></div>
+
+  <div class="stage">
+    <canvas id="grid" width="680" height="420"></canvas>
+    <figure class="wheel-wrap">
+      <canvas id="wheel" width="190" height="190"></canvas>
+      <figcaption>dominance wheel &middot; x &rarr; x+1, x+2, x+4</figcaption>
+    </figure>
+  </div>
+
+  <div class="controls">
+    <button id="play">⏸ Pause</button>
+    <button id="stepBtn">Step</button>
+    <button id="rand">Randomize</button>
+    <button id="clear">Clear</button>
+    <button id="reset">New island</button>
+    <button id="auto" title="Auto: introduce an antagonist when one colour passes 70% or the board goes stable">Auto</button>
+    <label>Palette <select id="palette"></select></label>
+    <label>Rule
+      <select id="mode">
+        <option value="threshold">Threshold</option>
+        <option value="stochastic">Stochastic</option>
+      </select>
+    </label>
+    <span class="stepper"><span class="stl">Speed</span><button type="button" class="stbtn" id="speed-dn">‹</button><span class="stval" id="speedOut">12</span><button type="button" class="stbtn" id="speed-up">›</button></span>
+    <span class="stepper"><span class="stl">Thr</span><button type="button" class="stbtn" id="thr-dn">‹</button><span class="stval" id="thrOut">2</span><button type="button" class="stbtn" id="thr-up">›</button></span>
+    <span class="stepper"><span class="stl">Brush</span><button type="button" class="stbtn" id="brush-dn">‹</button><span class="stval" id="brushOut">4</span><button type="button" class="stbtn" id="brush-up">›</button></span>
+    <span class="seedbox">seed <span id="seedOut" class="seedval">—</span>
+      <button id="rerun" title="re-run this seed (reproducible)">Re-run</button>
+      <button id="newseed" title="roll a new random seed">New seed</button>
+    </span>
+  </div>
+
+  <canvas id="hist" width="1360" height="140"></canvas>
+  <p id="status" class="status">step 0</p>
+  <p class="hint">Click a chip = pick brush &middot; drag to paint &middot; on each chip: &minus;&nbsp;/&nbsp;&#8709;&nbsp;/&nbsp;+ = reduce&nbsp;/&nbsp;turn&nbsp;off&nbsp;/&nbsp;augment strength. Turning an element on (or + while it's absent) drops a seed patch so it can take hold. Break the balance to see who takes over &mdash; clearest on the Threshold rule; Stochastic shows the &ldquo;survival of the weakest&rdquo; paradox.</p>
+  </section>
+
+  <section class="view" id="view-organic">
+    <details class="about">
+      <summary><span class="otitle">STÅLBERG QUAD GRID RPS-7</span><span class="oplus">+</span></summary>
+      <p class="sub">Same dominance, run on the dual cells of a relaxed hex-lattice quad mesh (Townscaper-style organic grid). Cells have ~4 neighbours, so the texture differs from the regular hex board.</p>
+    </details>
+
+    <div class="vfd-hero">
+      <div class="vfd-num"><canvas id="org-vfd" width="150" height="74"></canvas><span class="vfd-pct">%</span></div>
+      <div class="vfd-meta">
+        <div class="vfd-of" id="org-vfd-of">— DOMINANCE</div>
+        <div class="vfd-braille" id="org-vfd-bar"></div>
+      </div>
+    </div>
+
+    <div id="org-legend" class="org-legend"></div>
+
+    <div class="org-stage">
+      <canvas id="org-canvas"></canvas>
+      <canvas id="org-wheel" width="150" height="150" title="dominance wheel · x → x+1, x+2, x+4"></canvas>
+    </div>
+
+    <div class="controls org-controls">
+      <button id="org-play">⏸ Pause</button>
+      <button id="org-step">Step</button>
+      <button id="org-rand">Randomize</button>
+      <button id="org-regen">Regenerate</button>
+      <button id="org-auto" title="Auto: introduce an antagonist when one colour passes 70% or the board goes stable">Auto</button>
+      <label>Palette <select id="org-palette"></select></label>
+      <label>Rule
+        <select id="org-mode">
+          <option value="threshold">Threshold</option>
+          <option value="stochastic" selected>Stochastic</option>
+        </select>
+      </label>
+      <span class="stepper"><span class="stl">Speed</span><button type="button" class="stbtn" id="org-speed-dn">‹</button><span class="stval" id="org-speedOut">12</span><button type="button" class="stbtn" id="org-speed-up">›</button></span>
+      <span class="stepper"><span class="stl">Thr</span><button type="button" class="stbtn" id="org-thr-dn">‹</button><span class="stval" id="org-thrOut">2</span><button type="button" class="stbtn" id="org-thr-up">›</button></span>
+      <span class="stepper"><span class="stl">Board</span><button type="button" class="stbtn" id="org-rings-dn">‹</button><span class="stval" id="org-ringsOut">14</span><button type="button" class="stbtn" id="org-rings-up">›</button></span>
+    </div>
+    <p id="org-status" class="status">generating…</p>
+    <p class="hint">Bigger organic board &middot; click / drag to paint &middot; chip &minus;&nbsp;/&nbsp;&#8709;&nbsp;/&nbsp;+ = reduce&nbsp;/&nbsp;off&nbsp;/&nbsp;augment (turning on or augmenting an absent element seeds a patch) &middot; Regenerate or Board makes a new grid.</p>
+  </section>
+</main>
+<script type="module" src="./src/main.js?v=96f43902"></script>
+<script type="module" src="./src/organic.js?v=96f43902"></script>
+<script type="module" src="./src/tabs.js?v=96f43902"></script>
+</body>
+</html>
