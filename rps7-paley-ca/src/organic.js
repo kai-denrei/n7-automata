@@ -23,6 +23,7 @@ import { cellGlow, bloom } from './fx.js';
 const tournament = PALEY7;
 const N = tournament.n;
 const EMPTY = N;
+const LIFE_TEAL = '#1bf0c8'; // monochrome ALIVE colour for the Life rule
 
 const $ = (id) => document.getElementById(id);
 const view = $('view-organic');
@@ -46,10 +47,17 @@ if (canvas) {
     mode: 'stochastic',
     seed: newSeed(),
     rings: 14,
+    variance: 0,      // 0..10 integer (UI step); /10 → mesh variance 0.0..1.0
     step: 0,
     auto: true,
     autoNote: '',
+    // Life rule (degree-aware fraction band over the organic graph). Tuned by
+    // soup-sim on the real dual-cell adjacency: born if frac∈[0.30,0.55],
+    // survive if frac∈[0.25,0.55] — stays full (~0.43) with sustained change.
+    life: { bLo: 0.30, bHi: 0.55, sLo: 0.25, sHi: 0.55 },
   };
+  // Life-mode book-keeping for the Auto re-seeder (stall / extinction detection).
+  let lifeStall = 0, lifePrev = -1;
 
   const director = makeAutoDirector(tournament);
   const orgWheel = $('org-wheel') ? makeWheel($('org-wheel'), tournament) : null;
@@ -63,7 +71,7 @@ if (canvas) {
 
   // ---- generation --------------------------------------------------------
   function regenerate() {
-    mesh = generateMesh({ seeder: 'hex', rings: state.rings, spacing: 0.1, seed: state.seed });
+    mesh = generateMesh({ seeder: 'hex', rings: state.rings, spacing: 0.1, seed: state.seed, variance: state.variance / 10 });
     relax(mesh, { n_iters: 90, SIDE_LENGTH: 0.06, PULL_RATE: 0.3 });
     const he = buildHalfEdge(mesh);
     cells = extractDualCells(mesh, he);
@@ -81,10 +89,19 @@ if (canvas) {
   }
   function randomize(refit = true) {
     rng = makeRng(state.seed ^ 0x9e3779b9);
-    const act = activeIndices();
-    if (act.length) for (let i = 0; i < grid.length; i++) grid[i] = act[(rng() * act.length) | 0];
+    if (state.mode === 'life') {
+      lifeSoup();                                  // ~40% alive soup (NOT a full fill)
+      lifeStall = 0; lifePrev = -1;
+    } else {
+      const act = activeIndices();
+      if (act.length) for (let i = 0; i < grid.length; i++) grid[i] = act[(rng() * act.length) | 0];
+    }
     state.step = 0;
     if (refit) { record(); render(); }
+  }
+  // Lay a ~40% random alive soup over all cells (state 0) from the seeded RNG.
+  function lifeSoup() {
+    for (let i = 0; i < grid.length; i++) grid[i] = rng() < 0.40 ? 0 : EMPTY;
   }
 
   // ---- view fit + path building -----------------------------------------
@@ -153,12 +170,13 @@ if (canvas) {
     // filled organic cells — each lit at its own brightness (VFD-style jitter)
     ctx.lineJoin = 'round';
     ctx.lineWidth = 0.6;
+    const lifeMode = state.mode === 'life';
     for (let i = 0; i < grid.length; i++) {
       const s = grid[i];
       const path = cellPaths[i];
       if (!path || s < 0 || s >= EMPTY) continue;
       ctx.globalAlpha = cellGlow(i);
-      ctx.fillStyle = elements[s].color;
+      ctx.fillStyle = lifeMode ? LIFE_TEAL : elements[s].color;
       ctx.fill(path);
       ctx.globalAlpha = 1;
       ctx.strokeStyle = 'rgba(0,0,0,0.32)';
@@ -197,14 +215,30 @@ if (canvas) {
 
   // ---- simulation --------------------------------------------------------
   function step() {
-    if (state.mode === 'stochastic') auto.stepStochastic(grid, state.active, rng, state.bias);
+    if (state.mode === 'life') auto.stepLife(grid, state.active, state.life);
+    else if (state.mode === 'stochastic') auto.stepStochastic(grid, state.active, rng, state.bias);
     else auto.stepThreshold(grid, state.active, state.threshold, state.bias);
     state.step++;
     record();
     if (state.auto) autoTick();
   }
   // Auto mode: introduce a predator of the dominant element on monopoly/stall.
+  // In Life mode (monochrome) that's meaningless, so Auto becomes a RE-SEEDER:
+  // inject a fresh soup when the alive population stalls or drops below a floor.
   function autoTick() {
+    if (state.mode === 'life') {
+      const total = auto.population(grid).total;
+      const frac = grid.length ? total / grid.length : 0;
+      if (lifePrev >= 0 && Math.abs(total - lifePrev) <= 1) lifeStall++; else lifeStall = 0;
+      lifePrev = total;
+      if (frac < 0.04 || lifeStall >= 30) {
+        rng = makeRng((state.seed ^ (state.step * 0x85ebca6b)) >>> 0);
+        lifeSoup();
+        lifeStall = 0; lifePrev = -1;
+        state.autoNote = `auto · life re-seed (${frac < 0.04 ? 'extinction' : 'stall'})`;
+      }
+      return;
+    }
     const { pop, total } = auto.population(grid);
     const iv = director.tick(pop, total);
     if (!iv) return;
@@ -308,7 +342,17 @@ if (canvas) {
       $('org-auto').classList.toggle('on', state.auto);
       $('org-auto').textContent = state.auto ? 'Auto ●' : 'Auto';
     };
-    $('org-mode').onchange = (e) => { state.mode = e.target.value; };
+    $('org-mode').onchange = (e) => {
+      const prev = state.mode;
+      state.mode = e.target.value;
+      applyModeUI();
+      // Entering Life lays a fresh soup so the board isn't a dead full-fill.
+      if (state.mode === 'life' && prev !== 'life') {
+        rng = makeRng(state.seed ^ 0x9e3779b9);
+        lifeSoup(); lifeStall = 0; lifePrev = -1; state.step = 0;
+        record(); render();
+      }
+    };
     const stepper = (downId, upId, outId, lo, hi, step, get, set, after) => {
       const out = $(outId);
       const apply = (v) => { v = Math.max(lo, Math.min(hi, v)); const changed = v !== get(); set(v); if (out) out.textContent = v; if (changed && after) after(); };
@@ -319,6 +363,11 @@ if (canvas) {
     stepper('org-speed-dn', 'org-speed-up', 'org-speedOut', 2, 40, 2, () => state.speed, (v) => { state.speed = v; });
     stepper('org-thr-dn', 'org-thr-up', 'org-thrOut', 1, 4, 1, () => state.threshold, (v) => { state.threshold = v; });
     stepper('org-rings-dn', 'org-rings-up', 'org-ringsOut', 6, 22, 1, () => state.rings, (v) => { state.rings = v; }, () => { regenerate(); buildLegend(); });
+    // Variance: 0..10 (→ mesh variance 0.0..1.0). Changing it regenerates the
+    // mesh (like Board), producing coherent big & small cell regions at higher
+    // settings and ≈ today's near-uniform grid at 0. Clamped to the Node-tested
+    // safe range (0..1 was fully valid across seeds).
+    stepper('org-var-dn', 'org-var-up', 'org-varOut', 0, 10, 1, () => state.variance, (v) => { state.variance = v; }, () => { regenerate(); buildLegend(); });
     const palSel = $('org-palette');
     Object.entries(PALETTES).forEach(([k, v]) => {
       const o = document.createElement('option'); o.value = k; o.textContent = v.label;
@@ -329,6 +378,15 @@ if (canvas) {
     $('org-mode').value = state.mode;
     $('org-auto').classList.toggle('on', state.auto);
     $('org-auto').textContent = state.auto ? 'Auto ●' : 'Auto';
+    applyModeUI();
+  }
+  // In Life mode the per-element bias legend + Threshold stepper are irrelevant
+  // (monochrome 2-state); hide the Thr stepper to keep the controls honest.
+  function applyModeUI() {
+    const isLife = state.mode === 'life';
+    const dn = $('org-thr-dn');
+    const thr = dn && dn.closest ? dn.closest('.stepper') : null;
+    if (thr) thr.style.display = isLife ? 'none' : '';
   }
 
   // ---- loop --------------------------------------------------------------

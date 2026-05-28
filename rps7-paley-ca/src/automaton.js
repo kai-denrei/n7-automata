@@ -115,6 +115,40 @@ export function makeAutomaton(grid2d, tournament, EMPTY) {
     grid.set(next);
   }
 
+  // LIFE — classic 2-state Conway-style Game of Life on the regular 6-neighbour
+  // hex grid (used by the monochrome "Life" rule). State 0 = ALIVE, EMPTY = DEAD.
+  // `live` counts neighbours whose state is an element (0..EMPTY-1). An alive
+  // cell SURVIVES (stays 0) when live ∈ survival set, else dies to EMPTY; a dead
+  // cell is BORN (→0) when live ∈ birth set. Sea (-1) cells never change.
+  // params: { birth:Set<int>|int[], survive:Set<int>|int[] } over 0..6.
+  function stepLife(grid, active, params) {
+    const birth = params && params.birth ? params.birth : [2];
+    const survive = params && params.survive ? params.survive : [3, 4];
+    const inBirth = (v) => (birth.has ? birth.has(v) : birth.indexOf(v) >= 0);
+    const inSurv = (v) => (survive.has ? survive.has(v) : survive.indexOf(v) >= 0);
+    next.set(grid);
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const s = grid[idx(c, r)];
+        if (s === -1) continue;
+        neighbors(c, r, nb);
+        let live = 0;
+        for (let k = 0; k < 6; k++) {
+          const nc = nb[k][0], nr = nb[k][1];
+          if (nc < 0 || nc >= cols || nr < 0 || nr >= rows) continue;
+          const ns = grid[idx(nc, nr)];
+          if (ns >= 0 && ns < EMPTY) live++;
+        }
+        if (s >= 0 && s < EMPTY) {
+          next[idx(c, r)] = inSurv(live) ? 0 : EMPTY;
+        } else {
+          next[idx(c, r)] = inBirth(live) ? 0 : EMPTY;
+        }
+      }
+    }
+    grid.set(next);
+  }
+
   function population(grid) {
     const pop = new Array(tournament.n).fill(0);
     let total = 0;
@@ -125,5 +159,5 @@ export function makeAutomaton(grid2d, tournament, EMPTY) {
     return { pop, total };
   }
 
-  return { stepThreshold, stepStochastic, population };
+  return { stepThreshold, stepStochastic, stepLife, population };
 }

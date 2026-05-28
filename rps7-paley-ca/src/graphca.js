@@ -77,6 +77,38 @@ export function makeGraphAutomaton(adj, tournament, EMPTY) {
     grid.set(next);
   }
 
+  // LIFE — 2-state Game of Life over the organic adjacency graph. State 0 =
+  // ALIVE, EMPTY = DEAD. Because cell degree varies (2–6), an integer "exactly
+  // 3 neighbours" rule does not transfer; instead we use a DEGREE-AWARE FRACTION
+  // BAND: frac = live/deg. An alive cell survives when frac ∈ [sLo,sHi], else
+  // dies; a dead cell is born when frac ∈ [bLo,bHi]. Sea (-1) cells skip.
+  // params: { bLo, bHi, sLo, sHi } in [0,1].
+  function stepLife(grid, active, params) {
+    const bLo = params ? params.bLo : 0.30;
+    const bHi = params ? params.bHi : 0.55;
+    const sLo = params ? params.sLo : 0.20;
+    const sHi = params ? params.sHi : 0.65;
+    next.set(grid);
+    for (let i = 0; i < n; i++) {
+      const s = grid[i];
+      if (s === -1) continue;
+      const nb = adj[i];
+      const deg = nb.length;
+      let live = 0;
+      for (let k = 0; k < deg; k++) {
+        const ns = grid[nb[k]];
+        if (ns >= 0 && ns < EMPTY) live++;
+      }
+      const frac = deg > 0 ? live / deg : 0;
+      if (s >= 0 && s < EMPTY) {
+        next[i] = (frac >= sLo && frac <= sHi) ? 0 : EMPTY;
+      } else {
+        next[i] = (frac >= bLo && frac <= bHi) ? 0 : EMPTY;
+      }
+    }
+    grid.set(next);
+  }
+
   function population(grid) {
     const pop = new Array(tournament.n).fill(0);
     let total = 0;
@@ -87,7 +119,7 @@ export function makeGraphAutomaton(adj, tournament, EMPTY) {
     return { pop, total };
   }
 
-  return { stepThreshold, stepStochastic, population };
+  return { stepThreshold, stepStochastic, stepLife, population };
 }
 
 // Build dual-cell adjacency from a finalized mesh + extracted dual cells.

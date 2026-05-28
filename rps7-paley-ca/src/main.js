@@ -12,6 +12,7 @@ import { cellGlow, bloom } from './fx.js';
 const tournament = PALEY7;
 const N = tournament.n;
 const EMPTY = N; // sentinel for empty land
+const LIFE_TEAL = '#1bf0c8'; // monochrome ALIVE colour for the Life rule
 
 let paletteKey = DEFAULT_PALETTE;
 let elements = PALETTES[paletteKey].elements;
@@ -62,7 +63,12 @@ const state = {
   bias: new Array(N).fill(0),  // per-element strength: + spreads easier, - harder, 0 = balanced
   auto: false,                 // Auto mode: director introduces antagonists
   autoNote: '',                // last Auto intervention, shown in the status line
+  // Life rule (B/S sets over 6 hex neighbours). Tuned by soup-sim: B2/S345 is
+  // bounded (never dies, never saturates) with sustained oscillation.
+  life: { birth: [2], survive: [3, 4, 5] },
 };
+// Life-mode book-keeping: detect stalls/extinction so Auto can re-seed soup.
+let lifeStall = 0, lifePrev = -1;
 const history = [];
 const HIST_LEN = 240;
 
@@ -96,7 +102,8 @@ function render() {
         ctx.strokeStyle = 'rgba(72,72,84,0.16)';
         ctx.stroke();
       } else {
-        const col = elements[s].color;
+        // Life mode is monochrome: alive cells are VFD teal, dead aren't drawn.
+        const col = state.mode === 'life' ? LIFE_TEAL : elements[s].color;
         ctx.globalAlpha = cellGlow(i);   // per-cell brightness jitter (lit elements)
         ctx.fillStyle = col;
         ctx.fill();
@@ -202,7 +209,8 @@ function activeIndices() {
   return state.active.map((a, i) => a ? i : -1).filter(i => i >= 0);
 }
 function step() {
-  if (state.mode === 'stochastic') auto.stepStochastic(grid, state.active, rng, state.bias);
+  if (state.mode === 'life') auto.stepLife(grid, state.active, state.life);
+  else if (state.mode === 'stochastic') auto.stepStochastic(grid, state.active, rng, state.bias);
   else auto.stepThreshold(grid, state.active, state.threshold, state.bias);
   state.step++;
   record();
@@ -211,6 +219,22 @@ function step() {
 // Auto mode: when the board monopolises (>70%) or goes stable, introduce a
 // predator of the dominant element so the dynamics never settle.
 function autoTick() {
+  // In Life mode "predator of the dominant" is meaningless (monochrome). Auto
+  // becomes a RE-SEEDER instead: when the alive population stalls (no change
+  // over a window) or drops below a floor, inject a fresh soup so the board
+  // keeps evolving. The RPS director is bypassed entirely in this mode.
+  if (state.mode === 'life') {
+    const total = auto.population(grid).total;
+    const frac = total / landCount();
+    if (lifePrev >= 0 && Math.abs(total - lifePrev) <= 1) lifeStall++; else lifeStall = 0;
+    lifePrev = total;
+    if (frac < 0.04 || lifeStall >= 30) {
+      lifeSoup();
+      lifeStall = 0; lifePrev = -1;
+      state.autoNote = `auto · life re-seed (${frac < 0.04 ? 'extinction' : 'stall'})`;
+    }
+    return;
+  }
   const { pop, total } = auto.population(grid);
   const iv = director.tick(pop, total);
   if (!iv) return;
@@ -219,13 +243,24 @@ function autoTick() {
   buildLegend();
   state.autoNote = `auto · ${iv.reason}: ${elements[iv.antagonist].name} introduced vs ${elements[iv.dominant].name}`;
 }
+function landCount() { let n = 0; for (let i = 0; i < grid.length; i++) if (grid[i] !== -1) n++; return n || 1; }
+// Lay a ~40% random alive soup over the land (state 0), using the seeded RNG so
+// it's reproducible. A full fill would kill GoL, so this is the Life seeding.
+function lifeSoup() {
+  for (let i = 0; i < grid.length; i++) {
+    if (grid[i] === -1) continue;
+    grid[i] = rng() < 0.40 ? 0 : EMPTY;
+  }
+}
 // Refill all land from a fresh seeded RNG and reset the step/history so a fixed
 // seed reproduces both the board AND its subsequent evolution.
 function randomize() {
   resetRng();
-  fillRandom(grid, EMPTY, activeIndices(), rng);
+  if (state.mode === 'life') lifeSoup();          // ~40% alive soup (NOT a full fill)
+  else fillRandom(grid, EMPTY, activeIndices(), rng);
   history.length = 0;
   state.step = 0;
+  lifeStall = 0; lifePrev = -1;
   record();
   render();
 }
@@ -350,7 +385,21 @@ $('auto').onclick = () => {
   $('auto').classList.toggle('on', state.auto);
   $('auto').textContent = state.auto ? 'Auto ●' : 'Auto';
 };
-$('mode').onchange = e => { state.mode = e.target.value; };
+$('mode').onchange = e => {
+  const prev = state.mode;
+  state.mode = e.target.value;
+  applyModeUI();
+  // Entering Life lays a fresh soup so the board isn't a dead full-fill.
+  if (state.mode === 'life' && prev !== 'life') { resetRng(); lifeSoup(); lifeStall = 0; lifePrev = -1; state.step = 0; history.length = 0; record(); render(); }
+};
+// In Life mode the per-element strength legend, bias and Threshold stepper are
+// irrelevant (monochrome 2-state). Hide the Threshold stepper to avoid confusion;
+// leave the legend inert (still shows the live count via record()).
+function applyModeUI() {
+  const isLife = state.mode === 'life';
+  const thr = document.querySelector('.stepper:has(#thr-dn)') || ($('thr-dn') && $('thr-dn').closest('.stepper'));
+  if (thr) thr.style.display = isLife ? 'none' : '';
+}
 $('palette').onchange = e => { paletteKey = e.target.value; elements = PALETTES[paletteKey].elements; buildLegend(); render(); drawHist(); if (wheel) wheel.draw(elements, state.active, currentTriple()); };
 function stepper(downId, upId, outId, lo, hi, step, get, set) {
   const out = $(outId);
@@ -396,5 +445,6 @@ function loop(t) {
 }
 
 buildLegend();
+applyModeUI();
 newIsland();
 requestAnimationFrame(loop);

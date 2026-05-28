@@ -226,9 +226,11 @@ function normalizeWinding(vertices, quads) {
 //
 //   seeder 'poisson' -> Bridson Poisson-disk in [0,1]²  (default, unchanged)
 //   seeder 'hex'     -> triangular lattice clipped to a hexagon (Variant B)
-function seedPoints(rng, { seeder = 'poisson', r = 0.1, k = 30, rings = 4, spacing = 0.1 } = {}) {
+function seedPoints(rng, { seeder = 'poisson', r = 0.1, k = 30, rings = 4, spacing = 0.1, variance = 0, seed = 0 } = {}) {
   if (seeder === 'hex') {
-    return hexLattice({ rings, spacing }).points;
+    // `variance` density-modulates the lattice (coherent big/small regions);
+    // `seed` drives the noise field so the variance pattern is reproducible.
+    return hexLattice({ rings, spacing, variance, seed }).points;
   }
   // default: poisson
   return poissonDisk(rng, { r, k });
@@ -239,9 +241,9 @@ function seedPoints(rng, { seeder = 'poisson', r = 0.1, k = 30, rings = 4, spaci
 //   seeder === 'poisson' (default): existing Bridson path. Backward-compatible:
 //     generateMesh({ seed }) behaves exactly as before.
 //   seeder === 'hex': hexLattice({ rings, spacing }) then the SAME stages 2–5.
-export function generateMesh({ seed = 0, seeder = 'poisson', r = 0.1, k = 30, rings = 4, spacing = 0.1 } = {}) {
+export function generateMesh({ seed = 0, seeder = 'poisson', r = 0.1, k = 30, rings = 4, spacing = 0.1, variance = 0 } = {}) {
   const rng = mulberry32(seed);
-  const points = seedPoints(rng, { seeder, r, k, rings, spacing });
+  const points = seedPoints(rng, { seeder, r, k, rings, spacing, variance, seed });
   const triangles = triangulate(points);
   const { triangles: leftover, prequads } = mergeToQuads(points, triangles, rng);
   const faces = [...leftover, ...prequads];

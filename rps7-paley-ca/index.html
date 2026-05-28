@@ -4,13 +4,13 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>RPS-7 Paley hex CA</title>
-<link rel="stylesheet" href="./style.css?v=96f43902" />
+<link rel="stylesheet" href="./style.css?v=5af9fa79" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <meta name="cb" content="96f43902">
-  <link rel="icon" type="image/svg+xml" href="./cb-shapes/22.svg?v=96f43902">
-  <script src="./cb-badge.js?v=96f43902" defer></script>
+  <meta name="cb" content="5af9fa79">
+  <link rel="icon" type="image/svg+xml" href="./cb-shapes/26.svg?v=5af9fa79">
+  <script src="./cb-badge.js?v=5af9fa79" defer></script>
 </head>
 <body>
 <main>
@@ -45,6 +45,7 @@
       <select id="mode">
         <option value="threshold">Threshold</option>
         <option value="stochastic">Stochastic</option>
+        <option value="life">Life</option>
       </select>
     </label>
     <span class="stepper"><span class="stl">Speed</span><button type="button" class="stbtn" id="speed-dn">‹</button><span class="stval" id="speedOut">12</span><button type="button" class="stbtn" id="speed-up">›</button></span>
@@ -93,18 +94,20 @@
         <select id="org-mode">
           <option value="threshold">Threshold</option>
           <option value="stochastic" selected>Stochastic</option>
+          <option value="life">Life</option>
         </select>
       </label>
       <span class="stepper"><span class="stl">Speed</span><button type="button" class="stbtn" id="org-speed-dn">‹</button><span class="stval" id="org-speedOut">12</span><button type="button" class="stbtn" id="org-speed-up">›</button></span>
       <span class="stepper"><span class="stl">Thr</span><button type="button" class="stbtn" id="org-thr-dn">‹</button><span class="stval" id="org-thrOut">2</span><button type="button" class="stbtn" id="org-thr-up">›</button></span>
       <span class="stepper"><span class="stl">Board</span><button type="button" class="stbtn" id="org-rings-dn">‹</button><span class="stval" id="org-ringsOut">14</span><button type="button" class="stbtn" id="org-rings-up">›</button></span>
+      <span class="stepper"><span class="stl">Variance</span><button type="button" class="stbtn" id="org-var-dn">‹</button><span class="stval" id="org-varOut">0</span><button type="button" class="stbtn" id="org-var-up">›</button></span>
     </div>
     <p id="org-status" class="status">generating…</p>
     <p class="hint">Bigger organic board &middot; click / drag to paint &middot; chip &minus;&nbsp;/&nbsp;&#8709;&nbsp;/&nbsp;+ = reduce&nbsp;/&nbsp;off&nbsp;/&nbsp;augment (turning on or augmenting an absent element seeds a patch) &middot; Regenerate or Board makes a new grid.</p>
   </section>
 </main>
-<script type="module" src="./src/main.js?v=96f43902"></script>
-<script type="module" src="./src/organic.js?v=96f43902"></script>
-<script type="module" src="./src/tabs.js?v=96f43902"></script>
+<script type="module" src="./src/main.js?v=5af9fa79"></script>
+<script type="module" src="./src/organic.js?v=5af9fa79"></script>
+<script type="module" src="./src/tabs.js?v=5af9fa79"></script>
 </body>
 </html>
